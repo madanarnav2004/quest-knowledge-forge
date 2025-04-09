@@ -8,7 +8,7 @@ import {
   FileText, 
   MessageSquare, 
   BrainCircuit, 
-  Alert, 
+  AlertTriangle,  // Changed from Alert to AlertTriangle
   BarChart, 
   LayoutDashboard, 
   GitBranch, 
@@ -40,7 +40,7 @@ const Dashboard = () => {
       title: 'Deployment Process', 
       description: 'Knowledge gap identified', 
       time: '1 day ago',
-      icon: <Alert className="h-4 w-4 text-amber-500" />
+      icon: <AlertTriangle className="h-4 w-4 text-amber-500" /> // Changed from Alert to AlertTriangle
     },
     { 
       id: 4, 
