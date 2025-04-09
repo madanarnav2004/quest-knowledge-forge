@@ -17,9 +17,32 @@ import {
   User,
   Bot,
   Loader2,
+  ThumbsUp,
+  ThumbsDown,
+  Edit,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Message, Conversation, useAIResponseHandler } from './AIResponseHandler';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const ChatInterface = () => {
   const { user } = useAuth();
@@ -30,6 +53,9 @@ const ChatInterface = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [editTitle, setEditTitle] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [showThinking, setShowThinking] = useState<Record<string, boolean>>({});
   
   const {
     isLoading,
@@ -38,6 +64,8 @@ const ChatInterface = () => {
     getAIResponse,
     fetchConversations,
     fetchMessages,
+    deleteConversation,
+    updateConversationTitle,
   } = useAIResponseHandler();
 
   useEffect(() => {
@@ -68,6 +96,13 @@ const ChatInterface = () => {
   const loadMessages = async (conversationId: string) => {
     const data = await fetchMessages(conversationId);
     setMessages(data);
+    const thinkingState: Record<string, boolean> = {};
+    data.forEach(message => {
+      if (message.thinking) {
+        thinkingState[message.id] = false;
+      }
+    });
+    setShowThinking(thinkingState);
   };
 
   const scrollToBottom = () => {
@@ -145,6 +180,14 @@ const ChatInterface = () => {
       };
       
       setMessages([...messages, userMessage, aiMessage]);
+      
+      // If aiResponse has thinking, add to showThinking state
+      if (aiResponse.thinking) {
+        setShowThinking(prev => ({
+          ...prev,
+          [aiMessage.id]: false
+        }));
+      }
     }
     
     // Refresh conversations to update the list
@@ -165,6 +208,63 @@ const ChatInterface = () => {
       setConversations([newConversation, ...conversations]);
       setMessages([]);
     }
+  };
+  
+  const handleDeleteConversation = async () => {
+    if (!activeConversation) return;
+    
+    const success = await deleteConversation(activeConversation.id);
+    
+    if (success) {
+      const updatedConversations = conversations.filter(c => c.id !== activeConversation.id);
+      setConversations(updatedConversations);
+      
+      if (updatedConversations.length > 0) {
+        setActiveConversation(updatedConversations[0]);
+      } else {
+        setActiveConversation(null);
+        setMessages([]);
+      }
+    }
+  };
+  
+  const handleEditTitle = () => {
+    if (!activeConversation) return;
+    setEditTitle(activeConversation.title);
+    setIsEditingTitle(true);
+  };
+  
+  const handleSaveTitle = async () => {
+    if (!activeConversation || !editTitle.trim()) return;
+    
+    const success = await updateConversationTitle(activeConversation.id, editTitle);
+    
+    if (success) {
+      const updatedConversation = { ...activeConversation, title: editTitle };
+      setActiveConversation(updatedConversation);
+      
+      const updatedConversations = conversations.map(c => 
+        c.id === activeConversation.id ? updatedConversation : c
+      );
+      setConversations(updatedConversations);
+    }
+    
+    setIsEditingTitle(false);
+  };
+  
+  const toggleThinking = (messageId: string) => {
+    setShowThinking(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
+  
+  const provideFeedback = (isPositive: boolean, messageId: string) => {
+    // This is a placeholder for future feedback functionality
+    toast({
+      title: `Feedback ${isPositive ? 'positive' : 'negative'}`,
+      description: `Thank you for your feedback on this response!`,
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -235,14 +335,53 @@ const ChatInterface = () => {
             >
               <MessageSquare size={20} />
             </Button>
-            <h2 className="font-semibold">
-              {activeConversation ? activeConversation.title : 'New Conversation'}
-            </h2>
+            
+            {activeConversation && (
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold">
+                  {activeConversation.title}
+                </h2>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8" 
+                  onClick={handleEditTitle}
+                >
+                  <Edit size={14} />
+                </Button>
+              </div>
+            )}
+            
+            {!activeConversation && (
+              <h2 className="font-semibold">New Conversation</h2>
+            )}
           </div>
+          
           {activeConversation && (
-            <Button variant="ghost" size="icon">
-              <Trash size={18} />
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Trash size={18} />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this conversation? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    className="bg-red-500 hover:bg-red-600" 
+                    onClick={handleDeleteConversation}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
         
@@ -305,13 +444,44 @@ const ChatInterface = () => {
                           <Separator className="my-2" />
                           <div 
                             className="text-sm font-medium flex items-center gap-1 text-gray-600 cursor-pointer hover:text-gray-900"
+                            onClick={() => toggleThinking(message.id)}
                           >
                             <Lightbulb size={14} />
-                            AI Reasoning
+                            <span>AI Reasoning</span>
+                            <span className="text-xs">
+                              (click to {showThinking[message.id] ? 'hide' : 'show'})
+                            </span>
                           </div>
-                          <div className="mt-1 text-sm text-gray-600 bg-gray-50 p-2 rounded border whitespace-pre-wrap">
-                            {message.thinking}
-                          </div>
+                          
+                          {showThinking[message.id] && (
+                            <div className="mt-1 text-sm text-gray-600 bg-gray-50 p-2 rounded border whitespace-pre-wrap">
+                              {message.thinking}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Feedback buttons for AI responses only */}
+                      {message.role === 'assistant' && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 gap-1 text-xs"
+                            onClick={() => provideFeedback(true, message.id)}
+                          >
+                            <ThumbsUp size={14} />
+                            Helpful
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 gap-1 text-xs"
+                            onClick={() => provideFeedback(false, message.id)}
+                          >
+                            <ThumbsDown size={14} />
+                            Not Helpful
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -347,6 +517,32 @@ const ChatInterface = () => {
           </div>
         </div>
       </div>
+      
+      {/* Edit Title Dialog */}
+      <Dialog open={isEditingTitle} onOpenChange={setIsEditingTitle}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Conversation Title</DialogTitle>
+            <DialogDescription>
+              Enter a new title for this conversation.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            placeholder="Conversation title"
+            className="mt-4"
+          />
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsEditingTitle(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTitle}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

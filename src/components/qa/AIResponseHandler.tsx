@@ -159,6 +159,54 @@ export const useAIResponseHandler = () => {
     }
   };
 
+  const deleteConversation = async (conversationId: string): Promise<boolean> => {
+    if (!user || !conversationId) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId) as { error: any };
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Conversation deleted',
+        description: 'The conversation has been successfully deleted',
+      });
+      
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error deleting conversation',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const updateConversationTitle = async (conversationId: string, title: string): Promise<boolean> => {
+    if (!user || !conversationId) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ title })
+        .eq('id', conversationId) as { error: any };
+      
+      if (error) throw error;
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error updating conversation',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   return {
     isLoading,
     createConversation,
@@ -166,5 +214,7 @@ export const useAIResponseHandler = () => {
     getAIResponse,
     fetchConversations,
     fetchMessages,
+    deleteConversation,
+    updateConversationTitle,
   };
 };
