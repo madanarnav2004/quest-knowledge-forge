@@ -1,1 +1,5 @@
+
 project_id = "sfuqepikohmqxcdzijfe"
+
+[functions.query-knowledge]
+verify_jwt = true
