@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Building2 } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -19,6 +19,7 @@ const loginSchema = z.object({
 
 const registerSchema = loginSchema.extend({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters" }),
+  organization: z.string().optional(),
   confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters" }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
@@ -46,6 +47,7 @@ const AuthPage: React.FC = () => {
     defaultValues: {
       email: "",
       fullName: "",
+      organization: "",
       password: "",
       confirmPassword: "",
     },
@@ -62,7 +64,7 @@ const AuthPage: React.FC = () => {
 
   const onRegisterSubmit = async (data: RegisterFormValues) => {
     try {
-      await signUp(data.email, data.password, data.fullName);
+      await signUp(data.email, data.password, data.fullName, data.organization);
       setActiveTab("login");
     } catch (error) {
       console.error('Registration failed:', error);
@@ -93,11 +95,11 @@ const AuthPage: React.FC = () => {
           </div>
         </div>
         
-        <Card className="w-full">
+        <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle className="text-center">Welcome to Quest KF</CardTitle>
             <CardDescription className="text-center">
-              Sign in to access your knowledge base
+              Your company's knowledge management platform
             </CardDescription>
           </CardHeader>
           
@@ -115,9 +117,9 @@ const AuthPage: React.FC = () => {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>Work Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="example@email.com" {...field} />
+                          <Input placeholder="you@company.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -159,9 +161,9 @@ const AuthPage: React.FC = () => {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>Work Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="example@email.com" {...field} />
+                          <Input placeholder="you@company.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -176,6 +178,23 @@ const AuthPage: React.FC = () => {
                         <FormLabel>Full Name</FormLabel>
                         <FormControl>
                           <Input placeholder="John Doe" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="organization"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organization (Optional)</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input className="pl-10" placeholder="Your Company Name" {...field} />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -211,7 +230,7 @@ const AuthPage: React.FC = () => {
                   />
                   
                   <Button type="submit" className="w-full" disabled={registerForm.formState.isSubmitting}>
-                    {registerForm.formState.isSubmitting ? 'Signing up...' : 'Sign Up'}
+                    {registerForm.formState.isSubmitting ? 'Creating Account...' : 'Create Account'}
                   </Button>
                 </form>
               </Form>

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
@@ -10,8 +10,19 @@ import {
   LayoutDashboard, 
   MessageSquare, 
   Settings, 
-  Upload 
+  Upload,
+  LogOut,
+  User
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,6 +31,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, signOut } = useAuth();
   
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
@@ -34,6 +46,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   
   // Only show navigation sidebar if not on landing page
   const showNav = location.pathname !== '/';
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+  
+  // Extract user display name from metadata or email
+  const getUserDisplayName = () => {
+    if (!user) return 'Guest';
+    
+    const fullName = user.user_metadata?.full_name;
+    if (fullName) return fullName;
+    
+    // If no full name, use the first part of the email
+    return user.email ? user.email.split('@')[0] : 'User';
+  };
+  
+  // Get user initials for the avatar
+  const getUserInitials = () => {
+    const displayName = getUserDisplayName();
+    if (displayName === 'Guest' || displayName === 'User') return displayName.substring(0, 1);
+    
+    const nameParts = displayName.split(' ');
+    if (nameParts.length > 1) {
+      return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+    }
+    return displayName.substring(0, 2).toUpperCase();
+  };
+  
+  // Determine if user is admin - can be expanded based on your user roles system
+  const isAdmin = user?.user_metadata?.role === 'admin';
   
   return (
     <div className="flex h-screen bg-slate-50">
@@ -72,15 +115,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </nav>
             
             <div className="p-4 border-t border-sidebar-border">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center">
-                  <span className="text-white font-medium">JD</span>
-                </div>
-                <div className="text-sm">
-                  <p className="text-white font-medium">John Doe</p>
-                  <p className="text-sidebar-foreground opacity-70">Admin</p>
-                </div>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer">
+                    <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center">
+                      <span className="text-white font-medium">{getUserInitials()}</span>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-white font-medium">{getUserDisplayName()}</p>
+                      <p className="text-sidebar-foreground opacity-70">
+                        {isAdmin ? 'Admin' : 'Member'}
+                      </p>
+                    </div>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </aside>
@@ -88,15 +149,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       <main className={`flex-1 ${showNav ? 'md:ml-64' : ''} min-h-screen flex flex-col`}>
         {showNav && (
-          <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 sticky top-0 z-10">
-            <div className="md:hidden mr-4">
-              <Button variant="ghost" size="icon">
-                <LayoutDashboard className="h-5 w-5" />
-              </Button>
+          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-10">
+            <div className="flex items-center">
+              <div className="md:hidden mr-4">
+                <Button variant="ghost" size="icon">
+                  <LayoutDashboard className="h-5 w-5" />
+                </Button>
+              </div>
+              <h1 className="text-xl font-medium">
+                {navItems.find(item => item.path === location.pathname)?.name || 'Quest Knowledge Forge'}
+              </h1>
             </div>
-            <h1 className="text-xl font-medium">
-              {navItems.find(item => item.path === location.pathname)?.name || 'Quest Knowledge Forge'}
-            </h1>
+            
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                      <span className="text-white font-medium text-sm">{getUserInitials()}</span>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{getUserDisplayName()}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>Profile Settings</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600">Sign out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </header>
         )}
         
