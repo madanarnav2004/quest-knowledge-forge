@@ -10,6 +10,11 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import QAPage from "./pages/QAPage";
 import InputPage from "./pages/InputPage";
+import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import DocumentationPage from "./pages/DocumentationPage";
+import CodeAnalysisPage from "./pages/CodeAnalysisPage";
+import LearningPathsPage from "./pages/LearningPathsPage";
+import SettingsPage from "./pages/SettingsPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
@@ -40,38 +45,31 @@ const App = () => (
                 <InputPage />
               </ProtectedRoute>
             } />
-            {/* Placeholder routes for other sections */}
             <Route path="/knowledge" element={
               <ProtectedRoute>
-                <Dashboard />
+                <KnowledgeBasePage />
               </ProtectedRoute>
             } />
             <Route path="/docs" element={
               <ProtectedRoute>
-                <Dashboard />
+                <DocumentationPage />
               </ProtectedRoute>
             } />
             <Route path="/code" element={
               <ProtectedRoute>
-                <Dashboard />
+                <CodeAnalysisPage />
               </ProtectedRoute>
             } />
             <Route path="/learning" element={
               <ProtectedRoute>
-                <Dashboard />
+                <LearningPathsPage />
               </ProtectedRoute>
             } />
             <Route path="/settings" element={
               <ProtectedRoute>
-                <Dashboard />
+                <SettingsPage />
               </ProtectedRoute>
             } />
-            <Route path="/contact" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
