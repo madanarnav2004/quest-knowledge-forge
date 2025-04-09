@@ -84,7 +84,7 @@ const DocumentsList = () => {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: Document[] | null, error: any };
       
       if (error) throw error;
       
@@ -119,7 +119,7 @@ const DocumentsList = () => {
       const { error: dbError } = await supabase
         .from('documents')
         .delete()
-        .eq('id', id);
+        .eq('id', id) as { error: any };
         
       if (dbError) throw dbError;
       

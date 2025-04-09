@@ -33,12 +33,12 @@ export const useAIResponseHandler = () => {
         .insert({
           user_id: user.id,
           title
-        })
+        } as any)
         .select('id')
         .single();
       
       if (error) throw error;
-      return data.id;
+      return data?.id || null;
     } catch (error: any) {
       toast({
         title: 'Error creating conversation',
@@ -67,12 +67,12 @@ export const useAIResponseHandler = () => {
           content,
           sources,
           thinking
-        })
+        } as any)
         .select('id')
         .single();
       
       if (error) throw error;
-      return data.id;
+      return data?.id || null;
     } catch (error: any) {
       toast({
         title: 'Error saving message',
@@ -123,7 +123,7 @@ export const useAIResponseHandler = () => {
       const { data, error } = await supabase
         .from('conversations')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: Conversation[] | null, error: any };
       
       if (error) throw error;
       return data || [];
@@ -145,7 +145,7 @@ export const useAIResponseHandler = () => {
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as { data: Message[] | null, error: any };
       
       if (error) throw error;
       return data || [];

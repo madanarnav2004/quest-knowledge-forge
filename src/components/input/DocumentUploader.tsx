@@ -83,7 +83,7 @@ const DocumentUploader = () => {
           document_type: data.documentType,
           file_path: filePath,
           user_id: user.id,
-        });
+        } as any);
 
       if (insertError) throw insertError;
 
