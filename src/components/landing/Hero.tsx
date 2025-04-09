@@ -30,7 +30,7 @@ const Hero: React.FC = () => {
             </h1>
             
             <p className="text-slate-300 text-lg md:text-xl mb-8 max-w-2xl mx-auto lg:mx-0">
-              Quest Knowledge Forge helps teams capture, process, and distribute institutional knowledge with AI-powered insights and seamless integrations.
+              ZeroKT helps teams capture, process, and distribute institutional knowledge with AI-powered insights and seamless integrations.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
