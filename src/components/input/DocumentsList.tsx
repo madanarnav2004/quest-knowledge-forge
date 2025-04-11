@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -85,7 +84,6 @@ const DocumentsList = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
   
-  // Analytics data
   const [analytics, setAnalytics] = useState({
     totalDocuments: 0,
     processingDocuments: 0,
@@ -100,7 +98,6 @@ const DocumentsList = () => {
     
     fetchDocuments();
     
-    // Subscribe to realtime updates
     const subscription = supabase
       .channel('document-changes')
       .on(
@@ -140,11 +137,10 @@ const DocumentsList = () => {
       
       if (error) throw error;
       
-      // Simulate adding extra data that would normally come from the database
       const enhancedData = (data || []).map(doc => ({
         ...doc,
-        size: Math.floor(Math.random() * 10000) + 100, // Random file size in KB
-        word_count: Math.floor(Math.random() * 5000) + 100, // Random word count
+        size: Math.floor(Math.random() * 10000) + 100,
+        word_count: Math.floor(Math.random() * 5000) + 100,
       }));
       
       setDocuments(enhancedData);
@@ -163,7 +159,6 @@ const DocumentsList = () => {
   const filterDocuments = () => {
     let filtered = [...documents];
     
-    // Apply search query filter
     if (searchQuery) {
       filtered = filtered.filter(doc => 
         doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -172,7 +167,6 @@ const DocumentsList = () => {
       );
     }
     
-    // Apply tab filter
     if (activeTab === 'processing') {
       filtered = filtered.filter(doc => doc.status === 'processing');
     } else if (activeTab === 'completed') {
@@ -181,7 +175,6 @@ const DocumentsList = () => {
       filtered = filtered.filter(doc => doc.status === 'failed');
     }
     
-    // Apply type filter
     if (currentFilter) {
       filtered = filtered.filter(doc => doc.document_type === currentFilter);
     }
@@ -194,10 +187,7 @@ const DocumentsList = () => {
     let totalSize = 0;
     
     documents.forEach(doc => {
-      // Count by type
       byType[doc.document_type] = (byType[doc.document_type] || 0) + 1;
-      
-      // Add to total size
       totalSize += doc.size || 0;
     });
     
@@ -217,7 +207,6 @@ const DocumentsList = () => {
       
       if (!documentToDelete) return;
       
-      // Delete file from storage if it exists
       if (documentToDelete.file_path) {
         const { error: storageError } = await supabase.storage
           .from('documents')
@@ -226,7 +215,6 @@ const DocumentsList = () => {
         if (storageError) throw storageError;
       }
       
-      // Delete record from database
       const { error: dbError } = await supabase
         .from('documents')
         .delete()
@@ -258,7 +246,6 @@ const DocumentsList = () => {
     
     setDocuments(updatedDocuments);
     
-    // Simulate processing completion after a delay
     setTimeout(() => {
       const completedDocuments = documents.map(doc => 
         doc.id === id ? { ...doc, status: 'completed' } : doc
@@ -618,7 +605,6 @@ const DocumentsList = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Processing documents will be displayed here */}
                   {filteredDocuments.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
@@ -648,7 +634,6 @@ const DocumentsList = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Completed documents will be displayed here */}
                   {filteredDocuments.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
@@ -678,7 +663,6 @@ const DocumentsList = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Failed documents will be displayed here */}
                   {filteredDocuments.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
@@ -696,11 +680,11 @@ const DocumentsList = () => {
         </Tabs>
       </Card>
 
-      <AlertDialog>
+      <AlertDialog open={!!documentToDelete}>
         <AlertDialogTrigger asChild>
           <span className="hidden">{/* This is triggered programmatically */}</span>
         </AlertDialogTrigger>
-        <AlertDialogContent open={!!documentToDelete}>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Document</AlertDialogTitle>
             <AlertDialogDescription>

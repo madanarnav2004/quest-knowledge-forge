@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -20,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { GitBranch, GitFork, GitHub, GitMerge, GitPullRequest, Lock, Star, Users } from 'lucide-react';
+import { GitBranch, GitFork, Github, GitMerge, GitPullRequest, Lock, Star, Users } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
@@ -123,7 +122,7 @@ const GitHubConnector = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <GitHub className="mr-2 h-5 w-5" />
+              <Github className="mr-2 h-5 w-5" />
               Connect GitHub Repository
             </CardTitle>
             <CardDescription>
@@ -293,7 +292,7 @@ const GitHubConnector = () => {
           <CardContent>
             {connectedRepos.length === 0 ? (
               <div className="text-center py-8">
-                <GitHub className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                <Github className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium">No repositories connected</h3>
                 <p className="text-sm text-slate-500 mt-2">
                   Connect your first GitHub repository to enhance your knowledge base
@@ -306,7 +305,7 @@ const GitHubConnector = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center mb-2">
-                          <GitHub className="h-5 w-5 mr-2 text-slate-600" />
+                          <Github className="h-5 w-5 mr-2 text-slate-600" />
                           <a 
                             href={repo.url} 
                             target="_blank" 
