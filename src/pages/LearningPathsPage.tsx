@@ -38,7 +38,7 @@ const LearningPathsPage = () => {
     {
       id: 3,
       title: 'Integrating Knowledge Bases with Workflows',
-      description: 'Connect your knowledge base to your team's existing tools',
+      description: 'Connect your knowledge base to your team\'s existing tools',
       progress: 0,
       level: 'Intermediate',
       estimatedTime: '6 hours',
