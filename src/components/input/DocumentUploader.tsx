@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -102,7 +101,7 @@ const DocumentUploader = () => {
       const progressInterval = simulateProgress();
 
       // Upload file to Supabase storage
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('documents')
         .upload(filePath, file);
 
@@ -112,7 +111,10 @@ const DocumentUploader = () => {
       if (uploadError) throw uploadError;
 
       // Prepare tags array if provided
-      const tagsArray = data.tags ? data.tags.split(',').map(tag => tag.trim()) : [];
+      let tagsArray = [];
+      if (data.tags) {
+        tagsArray = data.tags.split(',').map(tag => tag.trim());
+      }
 
       // Create document record in database
       const { error: insertError } = await supabase
@@ -125,8 +127,9 @@ const DocumentUploader = () => {
           description: data.description || null,
           tags: tagsArray.length > 0 ? tagsArray : null,
           ocr_enabled: data.enableOCR,
-          summarization_enabled: data.enableSummarization
-        } as any);
+          summarization_enabled: data.enableSummarization,
+          status: 'processing'
+        });
 
       if (insertError) throw insertError;
 
@@ -139,6 +142,7 @@ const DocumentUploader = () => {
       form.reset();
       setUploadProgress(0);
     } catch (error: any) {
+      console.error("Upload error:", error);
       toast({
         title: "Upload failed",
         description: error.message || "An error occurred during upload",
