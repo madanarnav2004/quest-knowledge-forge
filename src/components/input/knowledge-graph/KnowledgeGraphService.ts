@@ -78,14 +78,26 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
     })) as KnowledgeNode[];
     
     // Format edges with proper type assertions
-    const formattedEdges = edges.map(edge => ({
-      id: edge.id,
-      source: edge.source_id,
-      target: edge.target_id,
-      label: formatRelationshipType(edge.relationship_type),
-      strength: edge.metadata?.strength || 0.5,
-      type: edge.relationship_type
-    })) as KnowledgeEdge[];
+    const formattedEdges = edges.map(edge => {
+      // Safely extract the strength from metadata
+      let strength = 0.5; // Default value
+      if (edge.metadata && typeof edge.metadata === 'object') {
+        // Check if strength exists in metadata and is a number
+        const metadataObj = edge.metadata as Record<string, unknown>;
+        if (metadataObj.strength && typeof metadataObj.strength === 'number') {
+          strength = metadataObj.strength;
+        }
+      }
+      
+      return {
+        id: edge.id,
+        source: edge.source_id,
+        target: edge.target_id,
+        label: formatRelationshipType(edge.relationship_type),
+        strength: strength,
+        type: edge.relationship_type
+      };
+    }) as KnowledgeEdge[];
     
     return {
       nodes: formattedNodes,
