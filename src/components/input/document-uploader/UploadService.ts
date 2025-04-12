@@ -65,21 +65,41 @@ export const uploadDocument = async (
       throw insertError;
     }
 
-    // Trigger document processing
-    try {
-      const { error: processingError } = await supabase.functions.invoke('process-document', {
-        body: { documentId: documentData.id }
-      });
-      
-      if (processingError) {
-        console.error("Processing error:", processingError);
-        toast.error("Document uploaded but processing failed. Please try again later.");
-      } else {
-        toast.success("Document uploaded and being processed");
+    // Trigger document processing with retry mechanism
+    const maxRetries = 3;
+    let processingError = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`Processing document attempt ${attempt + 1}/${maxRetries}`);
+        const response = await supabase.functions.invoke('process-document', {
+          body: { documentId: documentData.id }
+        });
+        
+        if (response.error) {
+          console.error(`Processing error on attempt ${attempt + 1}:`, response.error);
+          processingError = response.error;
+        } else {
+          // Processing succeeded
+          processingError = null;
+          break;
+        }
+      } catch (error) {
+        console.error(`Error on attempt ${attempt + 1}:`, error);
+        processingError = error;
       }
-    } catch (processingError) {
-      console.error("Processing error:", processingError);
+      
+      // If this wasn't the last attempt, wait before retrying
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+    
+    if (processingError) {
+      console.error("Processing error after all retries:", processingError);
       toast.error("Document uploaded but processing failed. Please try again later.");
+    } else {
+      toast.success("Document uploaded and being processed");
     }
 
     return { success: true, documentId: documentData.id };
@@ -105,10 +125,35 @@ export const reprocessDocument = async (documentId: string) => {
       throw updateError;
     }
     
-    // Trigger document processing
-    const { error: processingError } = await supabase.functions.invoke('process-document', {
-      body: { documentId }
-    });
+    // Trigger document processing with retry mechanism
+    const maxRetries = 3;
+    let processingError = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`Reprocessing document attempt ${attempt + 1}/${maxRetries}`);
+        const response = await supabase.functions.invoke('process-document', {
+          body: { documentId }
+        });
+        
+        if (response.error) {
+          console.error(`Reprocessing error on attempt ${attempt + 1}:`, response.error);
+          processingError = response.error;
+        } else {
+          // Processing succeeded
+          processingError = null;
+          break;
+        }
+      } catch (error) {
+        console.error(`Error on attempt ${attempt + 1}:`, error);
+        processingError = error;
+      }
+      
+      // If this wasn't the last attempt, wait before retrying
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
     
     if (processingError) {
       throw processingError;

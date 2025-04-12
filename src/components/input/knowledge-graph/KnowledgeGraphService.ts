@@ -47,6 +47,7 @@ export const getNodeColor = (type: string): string => {
 // Fetch knowledge graph data
 export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
   try {
+    console.log("Fetching knowledge graph data...");
     // Fetch nodes
     const { data: nodes, error: nodesError } = await supabase
       .from('knowledge_nodes')
@@ -67,6 +68,8 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
       throw edgesError;
     }
     
+    console.log(`Fetched ${nodes.length} nodes and ${edges.length} edges`);
+    
     // Format nodes with proper type assertions
     const formattedNodes = nodes.map(node => ({
       id: node.id,
@@ -81,20 +84,26 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
     const formattedEdges = edges.map(edge => {
       // Safely extract the strength from metadata
       let strength = 0.5; // Default value
-      if (edge.metadata && typeof edge.metadata === 'object') {
-        // Check if strength exists in metadata and is a number
-        const metadataObj = edge.metadata as Record<string, unknown>;
-        if (metadataObj.strength !== undefined) {
-          if (typeof metadataObj.strength === 'number') {
-            strength = metadataObj.strength;
-          } else if (typeof metadataObj.strength === 'string') {
-            // Try to parse string to number
-            const parsed = parseFloat(metadataObj.strength as string);
-            if (!isNaN(parsed)) {
-              strength = parsed;
+      
+      try {
+        if (edge.metadata && typeof edge.metadata === 'object') {
+          // Check if strength exists in metadata and is a number
+          const metadataObj = edge.metadata as Record<string, unknown>;
+          
+          if (metadataObj.strength !== undefined) {
+            if (typeof metadataObj.strength === 'number') {
+              strength = metadataObj.strength;
+            } else if (typeof metadataObj.strength === 'string') {
+              // Try to parse string to number
+              const parsed = parseFloat(metadataObj.strength as string);
+              if (!isNaN(parsed)) {
+                strength = parsed;
+              }
             }
           }
         }
+      } catch (error) {
+        console.error("Error parsing edge metadata:", error);
       }
       
       return {
@@ -107,9 +116,19 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
       };
     }) as KnowledgeEdge[];
     
+    // Filter out any edges with invalid source or target nodes
+    const nodeIds = new Set(formattedNodes.map(node => node.id));
+    const validEdges = formattedEdges.filter(edge => 
+      nodeIds.has(edge.source) && nodeIds.has(edge.target)
+    );
+    
+    if (validEdges.length !== formattedEdges.length) {
+      console.warn(`Filtered out ${formattedEdges.length - validEdges.length} edges with invalid node references`);
+    }
+    
     return {
       nodes: formattedNodes,
-      edges: formattedEdges
+      edges: validEdges
     };
   } catch (error) {
     console.error('Error fetching knowledge graph:', error);

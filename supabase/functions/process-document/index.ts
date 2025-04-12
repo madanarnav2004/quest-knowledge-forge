@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.33.1";
 
@@ -63,17 +64,18 @@ serve(async (req) => {
     try {
       textContent = await extractTextContent(fileData, document.document_type);
       
-      // Generate summary if requested
-      let summary = null;
-      if (document.summarization_enabled) {
-        summary = generateSummary(textContent);
-      }
-      
       // Count words for analytics
       const wordCount = countWords(textContent);
       
-      // Update document with extracted content
-      await supabase
+      // Generate summary first - IMPORTANT: Generate summary before knowledge graph
+      let summary = null;
+      if (document.summarization_enabled) {
+        summary = generateSummary(textContent);
+        console.log("Generated summary:", summary.substring(0, 100) + "...");
+      }
+      
+      // Update document with extracted content and summary
+      const { error: updateError } = await supabase
         .from("documents")
         .update({ 
           content: textContent,
@@ -83,9 +85,18 @@ serve(async (req) => {
           updated_at: new Date().toISOString() 
         })
         .eq("id", documentId);
+        
+      if (updateError) {
+        console.error("Error updating document content:", updateError);
+        await updateDocumentStatus(supabase, documentId, "failed");
+        return new Response(
+          JSON.stringify({ error: `Error updating document: ${updateError.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-      // Start generating knowledge graph nodes and relationships
-      await generateKnowledgeGraph(supabase, documentId, textContent, document);
+      // Start generating knowledge graph nodes and relationships after summary is created
+      await generateKnowledgeGraph(supabase, documentId, textContent, document, summary);
       
       // Mark document as completed
       await updateDocumentStatus(supabase, documentId, "completed");
@@ -117,13 +128,17 @@ serve(async (req) => {
 
 // Helper function to update document status
 async function updateDocumentStatus(supabase, documentId, status) {
-  await supabase
+  const { error } = await supabase
     .from("documents")
     .update({ 
       status, 
       updated_at: new Date().toISOString() 
     })
     .eq("id", documentId);
+    
+  if (error) {
+    console.error(`Error updating document status to ${status}:`, error);
+  }
 }
 
 // Count words in text content
@@ -185,9 +200,36 @@ async function extractTextContent(fileData, documentType) {
 }
 
 // Generate knowledge graph nodes and relationships
-async function generateKnowledgeGraph(supabase, documentId, textContent, document) {
-  // Extract entities and concepts from text
-  const entities = extractEntities(textContent);
+async function generateKnowledgeGraph(supabase, documentId, textContent, document, summary) {
+  console.log(`Generating knowledge graph for document: ${documentId}`);
+  
+  // Extract entities and concepts from text AND summary (if available)
+  const contentToAnalyze = summary ? textContent + " " + summary : textContent;
+  const entities = extractEntities(contentToAnalyze);
+  
+  console.log(`Extracted ${entities.length} entities`);
+  
+  // First, add the document itself as a node
+  const { data: documentNode, error: documentNodeError } = await supabase
+    .from("knowledge_nodes")
+    .insert({
+      name: document.title,
+      type: "document",
+      user_id: document.user_id,
+      count: 1,
+      metadata: {
+        document_id: documentId,
+        document_type: document.document_type,
+        summary: summary?.substring(0, 150)
+      }
+    })
+    .select("id")
+    .single();
+    
+  if (documentNodeError) {
+    console.error("Error creating document node:", documentNodeError);
+    return;
+  }
   
   // Create or update knowledge graph nodes
   for (const entity of entities) {
@@ -237,12 +279,12 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
       nodeId = newNode.id;
     }
     
-    // Create document-entity relationship
+    // Create entity-document relationship
     await supabase
       .from("knowledge_relationships")
       .insert({
         source_id: nodeId,
-        target_id: documentId,
+        target_id: documentNode.id,
         relationship_type: "mentioned_in",
         user_id: document.user_id,
         metadata: {
@@ -273,9 +315,7 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
           const { data: existingRel } = await supabase
             .from("knowledge_relationships")
             .select("id")
-            .eq("source_id", nodeId)
-            .eq("target_id", otherNodeData.id)
-            .eq("user_id", document.user_id);
+            .or(`source_id.eq.${nodeId}.and.target_id.eq.${otherNodeData.id},source_id.eq.${otherNodeData.id}.and.target_id.eq.${nodeId}`);
             
           if (!existingRel || existingRel.length === 0) {
             await supabase
@@ -303,9 +343,11 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
       vector_embedded: true 
     })
     .eq("id", documentId);
+    
+  console.log(`Knowledge graph generation completed for document: ${documentId}`);
 }
 
-// Extract entities from text - simplified version
+// Extract entities from text - improved version
 function extractEntities(text) {
   // This is a simplified entity extraction - in production, you'd use NLP models
   const entities = [];
@@ -314,6 +356,7 @@ function extractEntities(text) {
   const words = text.split(/\s+/);
   const sentenceEnds = new Set(['.', '!', '?']);
   let inSentence = false;
+  let sentenceStart = true;
   
   for (let i = 0; i < words.length; i++) {
     const word = words[i].trim();
@@ -321,78 +364,119 @@ function extractEntities(text) {
     // Skip empty words
     if (word.length === 0) continue;
     
-    // Skip first word of sentence for capitalization check
-    if (!inSentence) {
-      inSentence = true;
-      continue;
-    }
-    
     // Check if word ends a sentence
-    if (word.length > 0 && sentenceEnds.has(word[word.length - 1])) {
-      inSentence = false;
-    }
+    const endsWithPunctuation = word.length > 0 && sentenceEnds.has(word[word.length - 1]);
     
     // Check for capitalized words that aren't at sentence start
-    if (word.length > 0 && /^[A-Z][a-z]{2,}/.test(word)) {
+    if (word.length > 0 && /^[A-Z][a-z]{2,}/.test(word) && !sentenceStart) {
       // Get some context around the entity
       const start = Math.max(0, i - 3);
       const end = Math.min(words.length, i + 4);
       const context = words.slice(start, end).join(' ');
       
-      entities.push({
-        name: word.replace(/[^\w\s]/g, ''), // Remove punctuation
-        type: guessEntityType(word),
-        confidence: 0.7, // Mock confidence score
-        context
-      });
+      // Clean the name
+      const cleanName = word.replace(/[^\w\s]/g, '');
+      
+      // Check if entity already exists to avoid duplicates
+      if (!entities.some(e => e.name === cleanName)) {
+        entities.push({
+          name: cleanName,
+          type: guessEntityType(word, context),
+          confidence: 0.7, // Mock confidence score
+          context
+        });
+      }
     }
     
     // Look for technical terms
     if (/^[a-z]+\.[A-Za-z]+/.test(word) || /^[a-z]+-[a-z]+/.test(word)) {
       const context = words.slice(Math.max(0, i - 2), Math.min(words.length, i + 3)).join(' ');
       
-      entities.push({
-        name: word.replace(/[^\w\s\.-]/g, ''),
-        type: 'technical_term',
-        confidence: 0.6,
-        context
-      });
+      // Clean the name
+      const cleanName = word.replace(/[^\w\s\.-]/g, '');
+      
+      // Check if entity already exists
+      if (!entities.some(e => e.name === cleanName)) {
+        entities.push({
+          name: cleanName,
+          type: 'technical_term',
+          confidence: 0.6,
+          context
+        });
+      }
+    }
+    
+    // Update sentence tracking
+    if (endsWithPunctuation) {
+      sentenceStart = true;
+      inSentence = false;
+    } else if (sentenceStart) {
+      sentenceStart = false;
+      inSentence = true;
     }
   }
   
   return entities;
 }
 
-// Guess entity type based on patterns - simplified
-function guessEntityType(word) {
-  if (/^(Mr|Mrs|Ms|Dr|Prof)\.\s[A-Z][a-z]+/.test(word)) {
+// Guess entity type based on patterns - improved
+function guessEntityType(word, context) {
+  // Check for person names
+  if (/^(Mr|Mrs|Ms|Dr|Prof)\.\s[A-Z][a-z]+/.test(word) || 
+      context.includes("said") || 
+      context.includes("wrote") || 
+      context.includes("authored")) {
     return 'person';
   }
   
-  if (/^[A-Z][a-z]+ (Inc|Corp|LLC|Ltd)\.?$/.test(word)) {
+  // Check for organization names
+  if (/^[A-Z][a-z]+ (Inc|Corp|LLC|Ltd|Company|Group|Association)\.?$/.test(word) ||
+      context.includes("company") || 
+      context.includes("organization") || 
+      context.includes("founded")) {
     return 'organization';
   }
   
-  if (/^\d{4}-\d{2}-\d{2}$/.test(word)) {
+  // Check for dates
+  if (/^\d{4}-\d{2}-\d{2}$/.test(word) || 
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(word) ||
+      context.includes("date") ||
+      context.includes("year") ||
+      context.includes("month")) {
     return 'date';
   }
   
+  // Check for technical terms
+  if (context.includes("technology") || 
+      context.includes("method") || 
+      context.includes("function") ||
+      context.includes("code")) {
+    return 'technical_term';
+  }
+  
+  // Default to concept
   return 'concept';
 }
 
-// Calculate relationship strength between entities
+// Calculate relationship strength between entities - improved
 function calculateRelationshipStrength(entity1, entity2) {
   // In a real implementation, this would consider:
   // - proximity in text
   // - frequency of co-occurrence
   // - semantic similarity
   
-  // Basic implementation: check if entities appear in each other's context
-  if (entity1.context.includes(entity2.name) && entity2.context.includes(entity1.name)) {
-    return 0.8 + (Math.random() * 0.2); // Strong relationship 0.8-1.0
-  } else if (entity1.context.includes(entity2.name) || entity2.context.includes(entity1.name)) {
-    return 0.5 + (Math.random() * 0.3); // Medium relationship 0.5-0.8
+  // Check if entities appear in each other's context
+  const inEachOthersContext = entity1.context.includes(entity2.name) && entity2.context.includes(entity1.name);
+  const inOneContext = entity1.context.includes(entity2.name) || entity2.context.includes(entity1.name);
+  
+  // If they are of the same type, they're more likely to be related
+  const sameType = entity1.type === entity2.type;
+  
+  if (inEachOthersContext) {
+    return sameType ? 0.9 : 0.8; // Very strong relationship
+  } else if (inOneContext) {
+    return sameType ? 0.7 : 0.6; // Strong relationship
   } else {
-    return 0.3 + (Math.random() * 0.2); // Weaker relationship 0.3-0.5
+    return sameType ? 0.5 : 0.4; // Medium relationship
   }
 }
