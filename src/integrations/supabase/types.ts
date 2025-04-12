@@ -61,38 +61,56 @@ export type Database = {
         Row: {
           content: string | null
           created_at: string | null
+          description: string | null
           document_type: string
           file_path: string | null
           id: string
+          ocr_enabled: boolean | null
+          size: number | null
           status: string | null
+          summarization_enabled: boolean | null
+          tags: string[] | null
           title: string
           updated_at: string | null
           user_id: string
           vector_embedded: boolean | null
+          word_count: number | null
         }
         Insert: {
           content?: string | null
           created_at?: string | null
+          description?: string | null
           document_type: string
           file_path?: string | null
           id?: string
+          ocr_enabled?: boolean | null
+          size?: number | null
           status?: string | null
+          summarization_enabled?: boolean | null
+          tags?: string[] | null
           title: string
           updated_at?: string | null
           user_id: string
           vector_embedded?: boolean | null
+          word_count?: number | null
         }
         Update: {
           content?: string | null
           created_at?: string | null
+          description?: string | null
           document_type?: string
           file_path?: string | null
           id?: string
+          ocr_enabled?: boolean | null
+          size?: number | null
           status?: string | null
+          summarization_enabled?: boolean | null
+          tags?: string[] | null
           title?: string
           updated_at?: string | null
           user_id?: string
           vector_embedded?: boolean | null
+          word_count?: number | null
         }
         Relationships: []
       }
