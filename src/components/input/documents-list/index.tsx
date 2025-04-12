@@ -1,250 +1,222 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Document } from "./types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { File } from "lucide-react";
-
-// Import types and utilities
-import { Document, DocumentAnalytics } from "./types";
-import { filterDocuments, calculateAnalytics } from "./utils";
-
-// Import components
-import { DocumentsAnalytics } from "./DocumentsAnalytics";
+import { PlusCircle, RefreshCw } from "lucide-react";
 import { DocumentsTable } from "./DocumentsTable";
-import { FilterDropdown } from "./FilterDropdown";
 import { SearchInput } from "./SearchInput";
-import { DeleteConfirmationDialog } from "./DeleteConfirmationDialog";
-import { LoadingState } from "./LoadingState";
-import { EmptyDocumentsList } from "./EmptyDocumentsList";
+import { FilterDropdown } from "./FilterDropdown";
+import { DocumentsAnalytics } from "./DocumentsAnalytics";
 import { EmptyState } from "./EmptyState";
+import { LoadingState } from "./LoadingState";
+import { calculateAnalytics, filterDocuments } from "./utils";
+import { DeleteConfirmationDialog } from "./DeleteConfirmationDialog";
+import { toast } from "sonner";
+import KnowledgeGraphVisualization from "../knowledge-graph";
 
-const DocumentsList = () => {
+const DocumentsList: React.FC = () => {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
-  const [analytics, setAnalytics] = useState<DocumentAnalytics>({
-    totalDocuments: 0,
-    processingDocuments: 0,
-    completedDocuments: 0,
-    failedDocuments: 0,
-    byType: {},
-    totalSize: 0,
-  });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    
-    fetchDocuments();
-    
-    const subscription = supabase
-      .channel('document-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'documents',
-        },
-        () => {
-          fetchDocuments();
-        }
-      )
-      .subscribe();
-    
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [user]);
-  
-  useEffect(() => {
-    if (documents.length) {
-      const filtered = filterDocuments(documents, searchQuery, activeTab, currentFilter);
-      setFilteredDocuments(filtered);
-      setAnalytics(calculateAnalytics(documents));
+    if (user) {
+      fetchDocuments();
     }
+  }, [user]);
+
+  useEffect(() => {
+    setFilteredDocuments(
+      filterDocuments(documents, searchQuery, activeTab, currentFilter)
+    );
   }, [documents, searchQuery, activeTab, currentFilter]);
 
   const fetchDocuments = async () => {
-    if (!user) return;
-    
+    setIsLoading(true);
     try {
-      setLoading(true);
       const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false }) as { data: Document[] | null, error: any };
-      
+        .from("documents")
+        .select("*")
+        .order("created_at", { ascending: false });
+
       if (error) throw error;
-      
-      const enhancedData = (data || []).map(doc => ({
-        ...doc,
-        size: Math.floor(Math.random() * 10000) + 100,
-        word_count: Math.floor(Math.random() * 5000) + 100,
-      }));
-      
-      setDocuments(enhancedData);
-      setFilteredDocuments(enhancedData);
-    } catch (error: any) {
-      toast({
-        title: "Error fetching documents",
-        description: error.message,
-        variant: "destructive",
-      });
+      setDocuments(data || []);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      toast.error("Failed to load documents");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
-  
-  const deleteDocument = async (id: string) => {
+
+  const handleDeleteRequest = (id: string) => {
+    setDocumentToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!documentToDelete) return;
+
     try {
-      const documentToDelete = documents.find(doc => doc.id === id);
-      
-      if (!documentToDelete) return;
-      
-      if (documentToDelete.file_path) {
-        const { error: storageError } = await supabase.storage
-          .from('documents')
-          .remove([documentToDelete.file_path]);
-          
-        if (storageError) throw storageError;
-      }
-      
-      const { error: dbError } = await supabase
-        .from('documents')
+      // Get document to find file path
+      const { data: document, error: fetchError } = await supabase
+        .from("documents")
+        .select("file_path")
+        .eq("id", documentToDelete)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Delete document from database
+      const { error: deleteError } = await supabase
+        .from("documents")
         .delete()
-        .eq('id', id) as { error: any };
-        
-      if (dbError) throw dbError;
-      
-      setDocuments(documents.filter(doc => doc.id !== id));
-      
-      toast({
-        title: "Document deleted",
-        description: "The document has been deleted successfully",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error deleting document",
-        description: error.message,
-        variant: "destructive",
-      });
+        .eq("id", documentToDelete);
+
+      if (deleteError) throw deleteError;
+
+      // Delete file from storage if file_path exists
+      if (document?.file_path) {
+        const { error: storageError } = await supabase.storage
+          .from("documents")
+          .remove([document.file_path]);
+
+        if (storageError) {
+          console.error("Error deleting file:", storageError);
+          // Don't throw, continue as document is deleted from DB
+        }
+      }
+
+      // Delete any knowledge graph relations related to this document
+      await supabase
+        .from("knowledge_relationships")
+        .delete()
+        .or(`source_id.eq.${documentToDelete},target_id.eq.${documentToDelete}`);
+
+      // Update document list
+      setDocuments((prev) =>
+        prev.filter((doc) => doc.id !== documentToDelete)
+      );
+      toast.success("Document deleted successfully");
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      toast.error("Failed to delete document");
     } finally {
+      setDeleteDialogOpen(false);
       setDocumentToDelete(null);
     }
   };
-  
-  const handleReprocessDocument = (id: string) => {
-    const updatedDocuments = documents.map(doc => 
-      doc.id === id ? { ...doc, status: 'processing' } : doc
+
+  const handleReprocess = (id: string) => {
+    // Optimistically update UI
+    setDocuments((prev) =>
+      prev.map((doc) =>
+        doc.id === id ? { ...doc, status: "processing" } : doc
+      )
     );
-    
-    setDocuments(updatedDocuments);
-    
-    setTimeout(() => {
-      const completedDocuments = documents.map(doc => 
-        doc.id === id ? { ...doc, status: 'completed' } : doc
-      );
-      
-      setDocuments(completedDocuments);
-      
-      toast({
-        title: "Document processed",
-        description: "The document has been successfully processed",
-      });
-    }, 3000);
-  };
-  
-  const handleFilterByType = (type: string | null) => {
-    setCurrentFilter(currentFilter === type ? null : type);
   };
 
-  if (loading) {
-    return <LoadingState />;
-  }
+  const handleRefresh = () => {
+    fetchDocuments();
+  };
 
-  if (documents.length === 0) {
-    return <EmptyDocumentsList />;
-  }
+  const analytics = calculateAnalytics(documents);
 
   return (
-    <div className="space-y-6">
-      <DocumentsAnalytics analytics={analytics} />
-      
-      <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Your Documents</CardTitle>
-            <CardDescription>
-              Manage your uploaded documents
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <SearchInput 
-              value={searchQuery}
-              onChange={setSearchQuery}
-            />
-            <FilterDropdown onFilterChange={handleFilterByType} />
-          </div>
-        </CardHeader>
-        
-        <Tabs defaultValue="all" onValueChange={setActiveTab}>
-          <div className="px-6 pt-2">
-            <TabsList>
-              <TabsTrigger value="all" className="text-xs">All Documents</TabsTrigger>
-              <TabsTrigger value="processing" className="text-xs">Processing</TabsTrigger>
-              <TabsTrigger value="completed" className="text-xs">Completed</TabsTrigger>
-              <TabsTrigger value="failed" className="text-xs">Failed</TabsTrigger>
-            </TabsList>
-          </div>
-          
-          <TabsContent value="all" className="m-0">
-            <DocumentsTable 
-              documents={filteredDocuments}
-              onReprocess={handleReprocessDocument}
-              onDeleteRequest={setDocumentToDelete}
-            />
-          </TabsContent>
-          
-          <TabsContent value="processing" className="m-0">
-            <DocumentsTable 
-              documents={filteredDocuments}
-              onReprocess={handleReprocessDocument}
-              onDeleteRequest={setDocumentToDelete}
-            />
-          </TabsContent>
-          
-          <TabsContent value="completed" className="m-0">
-            <DocumentsTable 
-              documents={filteredDocuments}
-              onReprocess={handleReprocessDocument}
-              onDeleteRequest={setDocumentToDelete}
-            />
-          </TabsContent>
-          
-          <TabsContent value="failed" className="m-0">
-            <DocumentsTable 
-              documents={filteredDocuments}
-              onReprocess={handleReprocessDocument}
-              onDeleteRequest={setDocumentToDelete}
-            />
-          </TabsContent>
-        </Tabs>
-      </Card>
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Knowledge Base</h2>
+          <p className="text-muted-foreground">
+            Manage documents and view your knowledge graph
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowKnowledgeGraph(!showKnowledgeGraph)}
+            variant="outline"
+          >
+            {showKnowledgeGraph
+              ? "Hide Knowledge Graph"
+              : "Show Knowledge Graph"}
+          </Button>
+          <Button onClick={handleRefresh} variant="outline" size="icon">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button asChild>
+            <a href="/input#upload">
+              <PlusCircle className="mr-2 h-4 w-4" /> Upload Document
+            </a>
+          </Button>
+        </div>
+      </div>
 
-      <DeleteConfirmationDialog 
-        isOpen={!!documentToDelete}
-        onCancel={() => setDocumentToDelete(null)}
-        onConfirm={() => documentToDelete && deleteDocument(documentToDelete)}
+      {showKnowledgeGraph && (
+        <div className="mb-8">
+          <KnowledgeGraphVisualization />
+        </div>
+      )}
+
+      <DocumentsAnalytics analytics={analytics} />
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <Tabs
+          defaultValue="all"
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <TabsList>
+            <TabsTrigger value="all">All Documents</TabsTrigger>
+            <TabsTrigger value="processing">
+              Processing ({analytics.processingDocuments})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({analytics.completedDocuments})
+            </TabsTrigger>
+            <TabsTrigger value="failed">
+              Failed ({analytics.failedDocuments})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex gap-2">
+          <SearchInput value={searchQuery} onChange={setSearchQuery} />
+          <FilterDropdown
+            currentFilter={currentFilter}
+            setCurrentFilter={setCurrentFilter}
+            documentTypes={Object.keys(analytics.byType)}
+          />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <LoadingState />
+      ) : documents.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <DocumentsTable
+          documents={filteredDocuments}
+          onReprocess={handleReprocess}
+          onDeleteRequest={handleDeleteRequest}
+          onRefresh={handleRefresh}
+        />
+      )}
+
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
       />
     </div>
   );

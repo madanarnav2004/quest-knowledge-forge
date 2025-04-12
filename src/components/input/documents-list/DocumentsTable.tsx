@@ -8,18 +8,37 @@ import { Badge } from "@/components/ui/badge";
 import { MoreVertical, Eye, Download, Pencil, Brain, Trash2, Clock, FileIcon } from "lucide-react";
 import { getDocumentIcon, formatDate, formatFileSize } from "./utils";
 import { DocumentStatusIcon } from "./DocumentStatusIcon";
+import { toast } from "sonner";
+import { reprocessDocument } from "../document-uploader/UploadService";
 
 interface DocumentsTableProps {
   documents: Document[];
   onReprocess: (id: string) => void;
   onDeleteRequest: (id: string) => void;
+  onRefresh: () => void;
 }
 
 export const DocumentsTable: React.FC<DocumentsTableProps> = ({ 
   documents, 
   onReprocess,
-  onDeleteRequest 
+  onDeleteRequest,
+  onRefresh
 }) => {
+  const handleReprocess = async (id: string) => {
+    try {
+      toast.loading("Reprocessing document...");
+      await reprocessDocument(id);
+      toast.dismiss();
+      toast.success("Document reprocessing started");
+      onRefresh();
+      onReprocess(id);
+    } catch (error) {
+      toast.dismiss();
+      toast.error("Failed to reprocess document");
+      console.error("Reprocess error:", error);
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -99,7 +118,11 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
                         <Pencil className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center" onClick={() => onReprocess(doc.id)}>
+                      <DropdownMenuItem 
+                        className="flex items-center" 
+                        onClick={() => handleReprocess(doc.id)}
+                        disabled={doc.status === 'processing'}
+                      >
                         <Brain className="h-4 w-4 mr-2" />
                         Reprocess
                       </DropdownMenuItem>
