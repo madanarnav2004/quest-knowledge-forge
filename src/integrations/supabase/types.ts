@@ -96,6 +96,72 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_nodes: {
+        Row: {
+          count: number | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      knowledge_relationships: {
+        Row: {
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          relationship_type: string
+          source_id: string
+          target_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          relationship_type: string
+          source_id: string
+          target_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          relationship_type?: string
+          source_id?: string
+          target_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string

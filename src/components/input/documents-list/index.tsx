@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -97,11 +96,17 @@ const DocumentsList: React.FC = () => {
         }
       }
 
-      // Delete any knowledge graph relations related to this document
-      await supabase
-        .from("knowledge_relationships")
-        .delete()
-        .or(`source_id.eq.${documentToDelete},target_id.eq.${documentToDelete}`);
+      // Use a try-catch block to handle potential errors
+      try {
+        // Delete any knowledge graph relations related to this document
+        await supabase
+          .from("knowledge_relationships")
+          .delete()
+          .or(`source_id.eq.${documentToDelete},target_id.eq.${documentToDelete}`);
+      } catch (error) {
+        console.error("Error deleting knowledge relationships:", error);
+        // Don't throw, continue as document is deleted from DB
+      }
 
       // Update document list
       setDocuments((prev) =>

@@ -12,18 +12,18 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface DeleteConfirmationDialogProps {
-  isOpen: boolean;
-  onCancel: () => void;
+  open: boolean;
+  onClose: () => void;
   onConfirm: () => void;
 }
 
 export const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({
-  isOpen,
-  onCancel,
+  open,
+  onClose,
   onConfirm,
 }) => {
   return (
-    <AlertDialog open={isOpen}>
+    <AlertDialog open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Document</AlertDialogTitle>
@@ -32,7 +32,7 @@ export const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> =
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>
+          <AlertDialogCancel onClick={onClose}>
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction

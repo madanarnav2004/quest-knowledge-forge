@@ -67,7 +67,7 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
       throw edgesError;
     }
     
-    // Format nodes
+    // Format nodes with proper type assertions
     const formattedNodes = nodes.map(node => ({
       id: node.id,
       name: node.name,
@@ -75,9 +75,9 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
       count: node.count || 1,
       color: getNodeColor(node.type),
       size: calculateNodeSize(node.count || 1)
-    }));
+    })) as KnowledgeNode[];
     
-    // Format edges
+    // Format edges with proper type assertions
     const formattedEdges = edges.map(edge => ({
       id: edge.id,
       source: edge.source_id,
@@ -85,7 +85,7 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
       label: formatRelationshipType(edge.relationship_type),
       strength: edge.metadata?.strength || 0.5,
       type: edge.relationship_type
-    }));
+    })) as KnowledgeEdge[];
     
     return {
       nodes: formattedNodes,

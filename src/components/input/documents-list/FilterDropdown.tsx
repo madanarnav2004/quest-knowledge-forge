@@ -5,10 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Filter, FileText, FilePen, FileCode } from "lucide-react";
 
 interface FilterDropdownProps {
-  onFilterChange: (type: string | null) => void;
+  currentFilter: string | null;
+  setCurrentFilter: (type: string | null) => void;
+  documentTypes: string[];
 }
 
-export const FilterDropdown: React.FC<FilterDropdownProps> = ({ onFilterChange }) => {
+export const FilterDropdown: React.FC<FilterDropdownProps> = ({ 
+  currentFilter, 
+  setCurrentFilter, 
+  documentTypes 
+}) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -19,19 +25,19 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({ onFilterChange }
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onFilterChange('pdf')}>
+        <DropdownMenuItem onClick={() => setCurrentFilter('pdf')}>
           <FileText className="h-4 w-4 text-red-500 mr-2" />
           PDF Documents
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onFilterChange('markdown')}>
+        <DropdownMenuItem onClick={() => setCurrentFilter('markdown')}>
           <FilePen className="h-4 w-4 text-blue-500 mr-2" />
           Markdown
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onFilterChange('code')}>
+        <DropdownMenuItem onClick={() => setCurrentFilter('code')}>
           <FileCode className="h-4 w-4 text-purple-500 mr-2" />
           Code Files
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onFilterChange(null)}>
+        <DropdownMenuItem onClick={() => setCurrentFilter(null)}>
           Clear Filters
         </DropdownMenuItem>
       </DropdownMenuContent>
