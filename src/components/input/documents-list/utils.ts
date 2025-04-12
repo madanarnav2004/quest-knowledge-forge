@@ -1,27 +1,28 @@
 
+import React from "react";
 import { Document } from "./types";
 import { FileText, FilePen, FileCode, File, BarChart, MessageSquare } from "lucide-react";
 
 export const getDocumentIcon = (type: string) => {
   switch (type) {
     case 'pdf':
-      return <FileText className="h-5 w-5 text-red-500" />;
+      return React.createElement(FileText, { className: "h-5 w-5 text-red-500" });
     case 'markdown':
-      return <FilePen className="h-5 w-5 text-blue-500" />;
+      return React.createElement(FilePen, { className: "h-5 w-5 text-blue-500" });
     case 'code':
-      return <FileCode className="h-5 w-5 text-purple-500" />;
+      return React.createElement(FileCode, { className: "h-5 w-5 text-purple-500" });
     case 'excel':
-      return <BarChart className="h-5 w-5 text-green-500" />;
+      return React.createElement(BarChart, { className: "h-5 w-5 text-green-500" });
     case 'text':
-      return <File className="h-5 w-5 text-gray-500" />;
+      return React.createElement(File, { className: "h-5 w-5 text-gray-500" });
     case 'presentation':
-      return <FileText className="h-5 w-5 text-amber-500" />;
+      return React.createElement(FileText, { className: "h-5 w-5 text-amber-500" });
     case 'audio':
-      return <MessageSquare className="h-5 w-5 text-indigo-500" />;
+      return React.createElement(MessageSquare, { className: "h-5 w-5 text-indigo-500" });
     case 'video':
-      return <FileText className="h-5 w-5 text-pink-500" />;
+      return React.createElement(FileText, { className: "h-5 w-5 text-pink-500" });
     default:
-      return <File className="h-5 w-5 text-gray-500" />;
+      return React.createElement(File, { className: "h-5 w-5 text-gray-500" });
   }
 };
 
