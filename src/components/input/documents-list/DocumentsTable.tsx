@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreVertical, Eye, Download, Pencil, Brain, Trash2, Clock } from "lucide-react";
+import { MoreVertical, Eye, Download, Pencil, Brain, Trash2, Clock, FileIcon } from "lucide-react";
 import { getDocumentIcon, formatDate, formatFileSize } from "./utils";
 import { DocumentStatusIcon } from "./DocumentStatusIcon";
 
@@ -120,7 +120,7 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
             <TableRow>
               <TableCell colSpan={6} className="text-center py-8">
                 <div className="flex flex-col items-center">
-                  <File className="h-8 w-8 text-slate-300 mb-2" />
+                  <FileIcon className="h-8 w-8 text-slate-300 mb-2" />
                   <p className="text-sm text-slate-500">No documents found</p>
                 </div>
               </TableCell>
