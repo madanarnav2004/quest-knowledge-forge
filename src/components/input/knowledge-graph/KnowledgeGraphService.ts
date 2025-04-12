@@ -84,8 +84,16 @@ export const fetchKnowledgeGraph = async (): Promise<KnowledgeGraph> => {
       if (edge.metadata && typeof edge.metadata === 'object') {
         // Check if strength exists in metadata and is a number
         const metadataObj = edge.metadata as Record<string, unknown>;
-        if (metadataObj.strength && typeof metadataObj.strength === 'number') {
-          strength = metadataObj.strength;
+        if (metadataObj.strength !== undefined) {
+          if (typeof metadataObj.strength === 'number') {
+            strength = metadataObj.strength;
+          } else if (typeof metadataObj.strength === 'string') {
+            // Try to parse string to number
+            const parsed = parseFloat(metadataObj.strength as string);
+            if (!isNaN(parsed)) {
+              strength = parsed;
+            }
+          }
         }
       }
       

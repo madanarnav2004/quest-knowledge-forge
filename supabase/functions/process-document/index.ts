@@ -63,12 +63,23 @@ serve(async (req) => {
     try {
       textContent = await extractTextContent(fileData, document.document_type);
       
+      // Generate summary if requested
+      let summary = null;
+      if (document.summarization_enabled) {
+        summary = generateSummary(textContent);
+      }
+      
+      // Count words for analytics
+      const wordCount = countWords(textContent);
+      
       // Update document with extracted content
       await supabase
         .from("documents")
         .update({ 
           content: textContent,
+          description: summary,
           status: "processing", 
+          word_count: wordCount,
           updated_at: new Date().toISOString() 
         })
         .eq("id", documentId);
@@ -82,7 +93,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: "Document processed successfully and knowledge graph updated" 
+          message: "Document processed successfully and knowledge graph updated",
+          summary: summary
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -112,6 +124,40 @@ async function updateDocumentStatus(supabase, documentId, status) {
       updated_at: new Date().toISOString() 
     })
     .eq("id", documentId);
+}
+
+// Count words in text content
+function countWords(text) {
+  return text.split(/\s+/).filter(word => word.length > 0).length;
+}
+
+// Generate a simple summary of the text content
+function generateSummary(text, maxLength = 200) {
+  // First, split the text into sentences
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+  
+  // If there are no complete sentences, return a portion of the text
+  if (sentences.length === 0) {
+    return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+  }
+  
+  // Take the first few sentences that fit within the maxLength
+  let summary = "";
+  let i = 0;
+  
+  while (i < sentences.length && (summary.length + sentences[i].length) <= maxLength) {
+    summary += sentences[i];
+    i++;
+  }
+  
+  // If the summary is empty, take at least the first sentence
+  if (summary === "" && sentences.length > 0) {
+    summary = sentences[0].length > maxLength 
+      ? sentences[0].substring(0, maxLength) + "..."
+      : sentences[0];
+  }
+  
+  return summary;
 }
 
 // Mock function to extract text content - in a real environment, you'd use proper libraries
@@ -148,7 +194,7 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
     // Check if entity already exists
     const { data: existingEntities } = await supabase
       .from("knowledge_nodes")
-      .select("id")
+      .select("id, count")
       .eq("name", entity.name)
       .eq("user_id", document.user_id);
       
@@ -168,7 +214,7 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
         .eq("id", nodeId);
     } else {
       // Otherwise, create a new entity
-      const { data: newNode } = await supabase
+      const { data: newNode, error } = await supabase
         .from("knowledge_nodes")
         .insert({
           name: entity.name,
@@ -176,11 +222,17 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
           user_id: document.user_id,
           count: 1,
           metadata: {
-            confidence: entity.confidence
+            confidence: entity.confidence,
+            context: entity.context.substring(0, 100) // Keep context short
           }
         })
         .select("id")
         .single();
+        
+      if (error) {
+        console.error("Error creating knowledge node:", error);
+        continue;
+      }
         
       nodeId = newNode.id;
     }
@@ -195,33 +247,50 @@ async function generateKnowledgeGraph(supabase, documentId, textContent, documen
         user_id: document.user_id,
         metadata: {
           confidence: entity.confidence,
-          context: entity.context
+          strength: 0.8, // High strength for direct mentions
+          context: entity.context.substring(0, 100) // Keep context short
         }
       });
       
     // Create entity-entity relationships for co-occurrence
     for (const otherEntity of entities) {
       if (entity.name !== otherEntity.name) {
-        const { data: otherNodeData } = await supabase
+        const { data: otherNodeData, error } = await supabase
           .from("knowledge_nodes")
           .select("id")
           .eq("name", otherEntity.name)
           .eq("user_id", document.user_id)
           .single();
           
+        if (error) {
+          continue; // Skip if other node not found
+        }
+          
         if (otherNodeData) {
-          await supabase
+          const strength = calculateRelationshipStrength(entity, otherEntity);
+          
+          // Check if relationship already exists
+          const { data: existingRel } = await supabase
             .from("knowledge_relationships")
-            .insert({
-              source_id: nodeId,
-              target_id: otherNodeData.id,
-              relationship_type: "related_to",
-              user_id: document.user_id,
-              metadata: {
-                strength: calculateRelationshipStrength(entity, otherEntity),
-                document_id: documentId
-              }
-            });
+            .select("id")
+            .eq("source_id", nodeId)
+            .eq("target_id", otherNodeData.id)
+            .eq("user_id", document.user_id);
+            
+          if (!existingRel || existingRel.length === 0) {
+            await supabase
+              .from("knowledge_relationships")
+              .insert({
+                source_id: nodeId,
+                target_id: otherNodeData.id,
+                relationship_type: "related_to",
+                user_id: document.user_id,
+                metadata: {
+                  strength: strength,
+                  document_id: documentId
+                }
+              });
+          }
         }
       }
     }
@@ -317,6 +386,13 @@ function calculateRelationshipStrength(entity1, entity2) {
   // - proximity in text
   // - frequency of co-occurrence
   // - semantic similarity
-  // Here we use a simplified approach with random value
-  return 0.5 + (Math.random() * 0.5);
+  
+  // Basic implementation: check if entities appear in each other's context
+  if (entity1.context.includes(entity2.name) && entity2.context.includes(entity1.name)) {
+    return 0.8 + (Math.random() * 0.2); // Strong relationship 0.8-1.0
+  } else if (entity1.context.includes(entity2.name) || entity2.context.includes(entity1.name)) {
+    return 0.5 + (Math.random() * 0.3); // Medium relationship 0.5-0.8
+  } else {
+    return 0.3 + (Math.random() * 0.2); // Weaker relationship 0.3-0.5
+  }
 }

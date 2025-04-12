@@ -21,6 +21,7 @@ const KnowledgeGraphVisualization = () => {
     setLoading(true);
     try {
       const data = await fetchKnowledgeGraph();
+      console.log("Knowledge graph data:", data);
       setGraphData(data);
       
       if (data.nodes.length > 0) {
@@ -46,15 +47,89 @@ const KnowledgeGraphVisualization = () => {
     const centerX = width / 2;
     const centerY = height / 2;
     
-    // Calculate positions in a circle layout
-    const radius = Math.min(width, height) * 0.4;
-    
-    graph.nodes.forEach((node, index) => {
-      const angle = (index / graph.nodes.length) * 2 * Math.PI;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      positions[node.id] = { x, y };
-    });
+    // For a small number of nodes, use circle layout
+    if (graph.nodes.length <= 20) {
+      // Calculate positions in a circle layout
+      const radius = Math.min(width, height) * 0.4;
+      
+      graph.nodes.forEach((node, index) => {
+        const angle = (index / graph.nodes.length) * 2 * Math.PI;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        positions[node.id] = { x, y };
+      });
+    } else {
+      // For larger graphs, use a more complex force-directed-like layout
+      const nodeMap: Record<string, KnowledgeNode> = {};
+      graph.nodes.forEach(node => {
+        nodeMap[node.id] = node;
+        
+        // Initial random position
+        positions[node.id] = { 
+          x: centerX + (Math.random() - 0.5) * width * 0.8,
+          y: centerY + (Math.random() - 0.5) * height * 0.8
+        };
+      });
+      
+      // Simple force-directed algorithm (just a few iterations for performance)
+      const REPULSION = 500;
+      const ATTRACTION = 0.005;
+      const ITERATIONS = 20;
+      
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // Calculate repulsive forces between all nodes
+        for (let i = 0; i < graph.nodes.length; i++) {
+          for (let j = i + 1; j < graph.nodes.length; j++) {
+            const nodeA = graph.nodes[i];
+            const nodeB = graph.nodes[j];
+            const posA = positions[nodeA.id];
+            const posB = positions[nodeB.id];
+            
+            const dx = posB.x - posA.x;
+            const dy = posB.y - posA.y;
+            const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+            
+            // Apply repulsion force (inverse square law)
+            const force = REPULSION / (distance * distance);
+            const forceX = (dx / distance) * force;
+            const forceY = (dy / distance) * force;
+            
+            positions[nodeA.id].x -= forceX;
+            positions[nodeA.id].y -= forceY;
+            positions[nodeB.id].x += forceX;
+            positions[nodeB.id].y += forceY;
+          }
+        }
+        
+        // Calculate attractive forces along edges
+        for (const edge of graph.edges) {
+          const sourcePos = positions[edge.source];
+          const targetPos = positions[edge.target];
+          
+          if (sourcePos && targetPos) {
+            const dx = targetPos.x - sourcePos.x;
+            const dy = targetPos.y - sourcePos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+            
+            // Strength affects attraction
+            const force = distance * ATTRACTION * (edge.strength || 0.5);
+            const forceX = (dx / distance) * force;
+            const forceY = (dy / distance) * force;
+            
+            positions[edge.source].x += forceX;
+            positions[edge.source].y += forceY;
+            positions[edge.target].x -= forceX;
+            positions[edge.target].y -= forceY;
+          }
+        }
+      }
+      
+      // Ensure all nodes are within canvas bounds
+      Object.keys(positions).forEach(nodeId => {
+        positions[nodeId].x = Math.max(50, Math.min(width - 50, positions[nodeId].x));
+        positions[nodeId].y = Math.max(50, Math.min(height - 50, positions[nodeId].y));
+      });
+    }
     
     setNodePositions(positions);
   };
@@ -93,20 +168,39 @@ const KnowledgeGraphVisualization = () => {
         ctx.beginPath();
         ctx.moveTo(sourcePos.x, sourcePos.y);
         ctx.lineTo(targetPos.x, targetPos.y);
-        ctx.strokeStyle = `rgba(169, 169, 169, ${edge.strength})`;
-        ctx.lineWidth = 1 + edge.strength;
+        
+        // Edge style based on strength and type
+        const opacity = 0.2 + (edge.strength || 0.5) * 0.8;
+        ctx.strokeStyle = `rgba(169, 169, 169, ${opacity})`;
+        ctx.lineWidth = 1 + (edge.strength || 0.5) * 2;
+        
+        // Different line style based on relationship type
+        if (edge.type === 'mentioned_in') {
+          ctx.setLineDash([5, 2]);
+        } else {
+          ctx.setLineDash([]);
+        }
+        
         ctx.stroke();
+        ctx.setLineDash([]);
         
         // Draw edge label
-        if (showLabels) {
+        if (showLabels && zoomLevel > 0.8) {
           const midX = (sourcePos.x + targetPos.x) / 2;
           const midY = (sourcePos.y + targetPos.y) / 2;
+          
+          // Draw label background for better readability
+          const label = edge.label || edge.type;
+          const labelWidth = ctx.measureText(label).width;
+          
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.fillRect(midX - labelWidth/2 - 3, midY - 8, labelWidth + 6, 16);
           
           ctx.fillStyle = '#6B7280';
           ctx.font = '10px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(edge.label, midX, midY);
+          ctx.fillText(label, midX, midY);
         }
       }
     });
@@ -117,23 +211,41 @@ const KnowledgeGraphVisualization = () => {
       if (pos) {
         // Draw node circle
         ctx.beginPath();
-        const radius = node.size || 10;
+        const radius = (node.size || 10) * (0.5 + zoomLevel * 0.5);
         ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI);
         ctx.fillStyle = node.color || '#3B82F6';
         ctx.fill();
         
+        // Add a subtle border
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
         // Draw node label
         if (showLabels) {
+          // Label background for better readability
+          const labelWidth = ctx.measureText(node.name).width;
+          const labelY = pos.y + radius + 10;
+          
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.fillRect(pos.x - labelWidth/2 - 3, labelY - 8, labelWidth + 6, 16);
+          
           ctx.fillStyle = '#1F2937';
           ctx.font = 'bold 12px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(node.name, pos.x, pos.y + radius + 10);
+          ctx.fillText(node.name, pos.x, labelY);
           
-          if (node.type) {
+          if (node.type && zoomLevel > 0.8) {
+            const typeY = labelY + 15;
+            const typeWidth = ctx.measureText(node.type).width;
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillRect(pos.x - typeWidth/2 - 3, typeY - 6, typeWidth + 6, 12);
+            
             ctx.fillStyle = '#6B7280';
             ctx.font = '10px sans-serif';
-            ctx.fillText(node.type, pos.x, pos.y + radius + 25);
+            ctx.fillText(node.type, pos.x, typeY);
           }
         }
       }
